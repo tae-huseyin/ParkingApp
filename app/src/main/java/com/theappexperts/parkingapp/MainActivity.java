@@ -2,16 +2,15 @@ package com.theappexperts.parkingapp;
 
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
-import android.support.v4.app.FragmentTransaction;
+import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -30,12 +29,15 @@ import com.theappexperts.parkingapp.injection.components.DaggerActivityComponent
 import com.theappexperts.parkingapp.injection.modules.ActivityModule;
 import com.theappexperts.parkingapp.view.parkinglist.IParkingListMvpView;
 import com.theappexperts.parkingapp.view.parkinglist.ParkingListPresenter;
+import com.theappexperts.parkingapp.view.parkinglist.fragment.HistoryFragment;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.inject.Inject;
 
+import butterknife.BindView;
+import butterknife.ButterKnife;
+import butterknife.Unbinder;
 import io.realm.Realm;
 
 
@@ -43,7 +45,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     //Google maps object
     GoogleMap mMap;
-    private static final String MAP_FRAGMENT_TAG = "map";
     private boolean mMapIsReady = false;
 
     //getting data stuff :?:notso sure ask kalpesh
@@ -51,14 +52,26 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     //saving history
     private RealmController realmController;
+    //fragment
+    FragmentManager fragmentManager;
+    @BindView(R.id.btn_view)
+    FloatingActionButton btnView;
+    private Unbinder unbinder;
 
     @Inject
     ParkingListPresenter<MainActivity> parkingListPresenter;
 
     @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        btnView.show();
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        unbinder = ButterKnife.bind(this);
 
         //start realm
         realmController = new RealmController(Realm.getDefaultInstance());
@@ -73,27 +86,25 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             //map
             createMapFragment();
         }
+
+        btnView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                fragmentManager = getSupportFragmentManager();
+                fragmentManager.beginTransaction()
+                .add(R.id.frame_layout, new HistoryFragment())
+                .addToBackStack("ViewHistory")
+                .commit();
+                btnView.hide();
+            }
+        });
     }
 
     //map stuff
     private void createMapFragment()
     {
-        // It isn't possible to set a fragment's id programmatically so we set a tag instead and
-        // search for it using that.
-        SupportMapFragment mapFragment = (SupportMapFragment)
-                getSupportFragmentManager().findFragmentByTag(MAP_FRAGMENT_TAG);
-
-        // We only create a fragment if it doesn't already exist.
-        if (mapFragment == null) {
-            // To programmatically add the map, we first create a SupportMapFragment.
-            mapFragment = SupportMapFragment.newInstance();
-
-            // Then we add it using a FragmentTransaction.
-            FragmentTransaction fragmentTransaction =
-                    getSupportFragmentManager().beginTransaction();
-            fragmentTransaction.add(android.R.id.content, mapFragment, MAP_FRAGMENT_TAG);
-            fragmentTransaction.commit();
-        }
+        SupportMapFragment mapFragment =
+                (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
 
         mapFragment.setRetainInstance(true);
 
@@ -149,6 +160,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unbinder.unbind();
+    }
+
+    @Override
     public void onInfoWindowClick(Marker marker) {
 
 //        Integer id;
@@ -161,13 +178,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 //        Boolean isReserved;
 //        String reservedUntil;
 
-        RealmParkingHistory realmParkingHistory = new RealmParkingHistory(marker.getId());
+        RealmParkingHistory realmParkingHistory = new RealmParkingHistory(marker.getSnippet());
         realmController.previouslyLoaded(realmParkingHistory);
 
         showSnackbar("Added to History...");
-
-        //ArrayList<RealmParkingHistory> realmParkingHistories;
-        //realmParkingHistories = realmController.getCustomerList();
 
     }
     //end of map stuff

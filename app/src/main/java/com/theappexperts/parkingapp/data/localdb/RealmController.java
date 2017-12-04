@@ -29,7 +29,7 @@ public class RealmController {
     }
 
     //list of all history return
-    public ArrayList<RealmParkingHistory> getCustomerList(){
+    public ArrayList<RealmParkingHistory> getHistoryList(){
         ArrayList<RealmParkingHistory> history = new ArrayList<>();
 
         RealmResults<RealmParkingHistory> realmParkingHistoryRealmResults = realm.where(RealmParkingHistory.class).findAll();
