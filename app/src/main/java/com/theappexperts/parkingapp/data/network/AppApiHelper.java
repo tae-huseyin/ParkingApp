@@ -1,6 +1,7 @@
 package com.theappexperts.parkingapp.data.network;
 
 import com.theappexperts.parkingapp.data.network.model.ParkingModel;
+import com.theappexperts.parkingapp.data.network.model.ReserveModel;
 import com.theappexperts.parkingapp.data.network.services.RequestInterface;
 
 import java.util.List;
@@ -24,4 +25,9 @@ public class AppApiHelper implements ApiHelper{
     public Observable<List<ParkingModel>> getFromApi_ParkingList() {
         return requestInterface.getParkingList();
     }
+
+//    @Override
+//    public Observable<ReserveModel> postFromApi_ParkingReserve(int id, String reserve) {
+//        return requestInterface.postReserve(id, reserve);
+//    }
 }

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">FirstAPI</string>
+    <string name="app_name">Parking App</string>
     <!--App Message-->
     <string name="api_retry_error">Please retry!</string>
     <string name="api_default_error">Something wrong happened!</string>

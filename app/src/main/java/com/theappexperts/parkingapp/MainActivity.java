@@ -1,18 +1,29 @@
 package com.theappexperts.parkingapp;
 
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.theappexperts.parkingapp.data.localdb.RealmController;
+import com.theappexperts.parkingapp.data.localdb.RealmParkingHistory;
 import com.theappexperts.parkingapp.data.network.model.ParkingModel;
 import com.theappexperts.parkingapp.injection.components.ActivityComponent;
 import com.theappexperts.parkingapp.injection.components.DaggerActivityComponent;
@@ -20,19 +31,26 @@ import com.theappexperts.parkingapp.injection.modules.ActivityModule;
 import com.theappexperts.parkingapp.view.parkinglist.IParkingListMvpView;
 import com.theappexperts.parkingapp.view.parkinglist.ParkingListPresenter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.inject.Inject;
 
+import io.realm.Realm;
 
-public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, IParkingListMvpView {
+
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnInfoWindowClickListener, IParkingListMvpView {
 
     //Google maps object
     GoogleMap mMap;
     private static final String MAP_FRAGMENT_TAG = "map";
+    private boolean mMapIsReady = false;
 
     //getting data stuff :?:notso sure ask kalpesh
     ActivityComponent activityComponent;
+
+    //saving history
+    private RealmController realmController;
 
     @Inject
     ParkingListPresenter<MainActivity> parkingListPresenter;
@@ -42,15 +60,22 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        //dagger stuff
-        injectDagger();
-        parkingListPresenter.onAttach(this);
-        parkingListPresenter.onCallParkingList();
-        //end of dagger stuff
+        //start realm
+        realmController = new RealmController(Realm.getDefaultInstance());
 
-        createMapFragment();
+        if(savedInstanceState == null) {
+            //dagger stuff
+            injectDagger();
+            parkingListPresenter.onAttach(this);
+            parkingListPresenter.onCallParkingList();
+            //end of dagger stuff
+
+            //map
+            createMapFragment();
+        }
     }
 
+    //map stuff
     private void createMapFragment()
     {
         // It isn't possible to set a fragment's id programmatically so we set a tag instead and
@@ -89,7 +114,63 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         LatLng zoomTo = new LatLng(37.773972,-122.431297);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(zoomTo, 20));
+
+        mMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
+            @Override
+            public View getInfoWindow(Marker arg0) {
+                return null;
+            }
+
+            @Override
+            public View getInfoContents(Marker marker) {
+
+                LinearLayout info = new LinearLayout(getApplicationContext());
+                info.setOrientation(LinearLayout.VERTICAL);
+
+                TextView title = new TextView(getApplicationContext());
+                title.setTextColor(Color.BLACK);
+                title.setGravity(Gravity.CENTER);
+                title.setTypeface(null, Typeface.BOLD);
+                title.setText(marker.getTitle());
+
+                TextView snippet = new TextView(getApplicationContext());
+                snippet.setTextColor(Color.GRAY);
+                snippet.setText(marker.getSnippet());
+
+                info.addView(title);
+                info.addView(snippet);
+
+                return info;
+            }
+        });
+
+        mMap.setOnInfoWindowClickListener(this);
+        mMapIsReady = true;
     }
+
+    @Override
+    public void onInfoWindowClick(Marker marker) {
+
+//        Integer id;
+//        String lat;
+//        String lng;
+//        String name;
+//        String costPerMin;
+//        Integer maxResrMin;
+//        Integer minResrMin;
+//        Boolean isReserved;
+//        String reservedUntil;
+
+        RealmParkingHistory realmParkingHistory = new RealmParkingHistory(marker.getId());
+        realmController.previouslyLoaded(realmParkingHistory);
+
+        showSnackbar("Added to History...");
+
+        //ArrayList<RealmParkingHistory> realmParkingHistories;
+        //realmParkingHistories = realmController.getCustomerList();
+
+    }
+    //end of map stuff
 
     private void showSnackbar(final String text) {
         View container = findViewById(android.R.id.content);
@@ -101,12 +182,33 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     //Mvp stuff
     @Override
     public void onFetchDataSuccess(List<ParkingModel> parkingModels) {
-        showSnackbar("Data loaded...");
+        showSnackbar("Parking loading...");
+
+        if(mMapIsReady) {
+            for (ParkingModel x : parkingModels) {
+                double Lat = Double.parseDouble(x.getLat());
+                double Lng = Double.parseDouble(x.getLng());
+                LatLng pos = new LatLng(Lat, Lng);
+
+                float colour = ((x.getIsReserved()) ? BitmapDescriptorFactory.HUE_RED : BitmapDescriptorFactory.HUE_GREEN);
+
+                mMap.addMarker(new MarkerOptions()
+                        .position(pos)
+                        .icon(BitmapDescriptorFactory.defaultMarker(colour))
+                        .title(x.getId().toString())
+                        .snippet("Reserved Until" + "\n" + ((x.getReservedUntil() == null) ? "Available" : x.getReservedUntil())
+                                + "\nReservation Information\n"
+                                + "\nMinimum Time:\t" + x.getMinReserveTimeMins()
+                                + "\nMaximum Time:\t" + x.getMaxReserveTimeMins()
+                                + "\nCost per (min):\t" + x.getCostPerMinute())
+                        .zIndex(((x.getIsReserved()) ? 0.0f : 1.0f)));
+            }
+        }
     }
 
     @Override
     public void onFetchDataError(String message) {
-
+        showSnackbar(message);
     }
 
     @Override
